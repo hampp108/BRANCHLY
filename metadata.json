@@ -1,0 +1,8 @@
+{
+  "name": "BRANCHLY",
+  "description": "From Your First Fork to Your First Merge. An approachable, educational open-source contribution platform helping beginners explore repositories, understand issues, and make their first pull request.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
