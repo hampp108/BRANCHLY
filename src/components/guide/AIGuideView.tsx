@@ -79,20 +79,35 @@ Requested Depth: ${explanationDepth} (${depthPrompts[explanationDepth]})
 
 Please provide an educational, clear response in pure markdown without fluff.`;
 
-    const res = await generateWithAI(
-      prompt,
-      'You are BRANCHLY AI Guide, a dedicated open-source teacher powered by open-weight AI. Always prioritize conceptual understanding, patient encouragement, and verified Git best practices.'
-    );
+    try {
+      const res = await generateWithAI(
+        prompt,
+        'You are BRANCHLY AI Guide, a dedicated open-source teacher powered by Gemini AI. Always prioritize conceptual understanding, patient encouragement, and verified Git best practices.'
+      );
 
-    const assistantMsg: Message = {
-      role: 'assistant',
-      content: res.text || `Here is a clear explanation of ${textToSend}:\n\nIn Git, every repository is a graph of commits. When you contribute, you keep your changes on a small dedicated branch so that the main project history stays stable. Try checking the 9 steps in Newcomer Path for hands-on practice!`,
-      depth: explanationDepth,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
+      if (res.error) {
+        throw new Error(res.error);
+      }
 
-    setMessages((prev) => [...prev, assistantMsg]);
-    setIsLoading(false);
+      const assistantMsg: Message = {
+        role: 'assistant',
+        content: res.text || 'No response was generated. Please try asking again.',
+        depth: explanationDepth,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: any) {
+      const errorMsg: Message = {
+        role: 'assistant',
+        content: `⚠️ **AI Service Notice:** ${err.message || 'Unable to connect to Gemini AI backend.'}\n\nTo enable live generative responses, ensure \`GEMINI_API_KEY\` is configured in your server environment. You can also explore the 9 structured steps in the **Newcomer Path** or test Git commands in the **Git Playground**!`,
+        depth: explanationDepth,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -110,7 +125,7 @@ Please provide an educational, clear response in pure markdown without fluff.`;
           <div className="flex items-center gap-2 text-xs text-[#9CA3AF] mt-0.5 font-mono">
             <span>Context: {activeRepo ? activeRepo.full_name : 'General Open Source'}</span>
             <span aria-hidden="true" className="text-[#1E2822]">·</span>
-            <span className="text-[#10B981]">Gemma 2 Architecture</span>
+            <span className="text-[#10B981]">Gemini 3.1 Flash Lite</span>
           </div>
         </div>
 
@@ -191,7 +206,7 @@ Please provide an educational, clear response in pure markdown without fluff.`;
         {isLoading && (
           <div className="flex items-center gap-2 text-xs text-[#9CA3AF] p-3 rounded-xl bg-[#121814] border border-[#1E2822] w-fit">
             <Sparkles className="w-3.5 h-3.5 text-[#10B981] animate-pulse" />
-            <span>Consulting open-weight mentor model...</span>
+            <span>Consulting Gemini AI guide...</span>
           </div>
         )}
       </div>

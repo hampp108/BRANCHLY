@@ -15,9 +15,10 @@ import {
   Copy,
   Check,
   ChevronRight,
-  GitBranch
+  GitBranch,
+  RotateCcw
 } from 'lucide-react';
-import { GitHubIssue, GitHubRepo, IssueCategory, IssueDifficulty, IssueAnalysis } from '../../types';
+import { GitHubIssue, GitHubRepo, IssueAnalysis } from '../../types';
 import { getRepoIssues, analyzeIssueHeuristically, generateWithAI } from '../../services/api';
 import { toggleSaveIssue, getUserProgress } from '../../services/storage';
 
@@ -45,6 +46,7 @@ export const IssueMedicView: React.FC<IssueMedicViewProps> = ({
   const [selectedIssue, setSelectedIssue] = useState<GitHubIssue | null>(null);
   const [analysis, setAnalysis] = useState<IssueAnalysis | null>(null);
   const [aiDeepExplanation, setAiDeepExplanation] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [isLoadingAi, setIsLoadingAi] = useState(false);
   const [savedIssueIds, setSavedIssueIds] = useState<number[]>([]);
   const [copiedQuestion, setCopiedQuestion] = useState<number | null>(null);
@@ -54,8 +56,7 @@ export const IssueMedicView: React.FC<IssueMedicViewProps> = ({
     setSavedIssueIds(progress.savedIssues.map(s => s.issue.id));
   }, []);
 
-  // Fetch issues whenever activeRepo changes
-  useEffect(() => {
+  const fetchIssuesForActiveRepo = () => {
     if (!activeRepo) return;
     setIsLoading(true);
     setError(null);
@@ -64,12 +65,17 @@ export const IssueMedicView: React.FC<IssueMedicViewProps> = ({
       .then((data) => {
         setIssues(data);
       })
-      .catch((err) => {
-        setError(err.message || 'Failed to retrieve open issues.');
+      .catch((err: any) => {
+        setError(err.message || 'Failed to retrieve open issues from GitHub.');
       })
       .finally(() => {
         setIsLoading(false);
       });
+  };
+
+  // Fetch issues whenever activeRepo changes
+  useEffect(() => {
+    fetchIssuesForActiveRepo();
   }, [activeRepo]);
 
   // Open Issue Modal & Analyze
@@ -78,11 +84,14 @@ export const IssueMedicView: React.FC<IssueMedicViewProps> = ({
     const heur = analyzeIssueHeuristically(issue, activeRepo?.language);
     setAnalysis(heur);
     setAiDeepExplanation(null);
+    setAiError(null);
   };
 
   const handleDeepAIAnalyze = async () => {
     if (!selectedIssue || !analysis) return;
     setIsLoadingAi(true);
+    setAiError(null);
+
     const prompt = `As BRANCHLY IssueMedic, simplify this open-source issue for a college student / first-time contributor.
 Issue Title: "${selectedIssue.title}"
 Repository: "${activeRepo?.full_name}" (${activeRepo?.language || 'Codebase'})
@@ -94,8 +103,14 @@ Please break this down into:
 2. What you actually need to change in the codebase
 3. How to verify your fix locally`;
 
-    const res = await generateWithAI(prompt, 'You are IssueMedic, an open-source technical mentor. Speak with clarity, patience, and encouraging directness.');
-    if (res.text) {
+    const res = await generateWithAI(
+      prompt,
+      'You are IssueMedic, an open-source technical mentor. Speak with clarity, patience, and encouraging directness.'
+    );
+
+    if (res.error) {
+      setAiError(res.error);
+    } else if (res.text) {
       setAiDeepExplanation(res.text);
     }
     setIsLoadingAi(false);
@@ -157,12 +172,12 @@ Please break this down into:
           </h2>
           <p className="text-xs text-[#9CA3AF] mt-0.5 font-mono">
             {activeRepo
-              ? `Scanning issues for ${activeRepo.full_name} (${issues.length} open issues retrieved)`
-              : 'Please select a repository to inspect its issue tracker.'}
+              ? `Scanning live issues for ${activeRepo.full_name} (${issues.length} retrieved)`
+              : 'Please select a repository to inspect its public issue tracker.'}
           </p>
         </div>
 
-        <div>
+        <div className="flex items-center gap-2">
           {!activeRepo ? (
             <button
               onClick={onOpenRepoSelector}
@@ -171,15 +186,26 @@ Please break this down into:
               Select Active Repo
             </button>
           ) : (
-            <a
-              href={`${activeRepo.html_url}/issues`}
-              target="_blank"
-              rel="noreferrer"
-              className="px-3.5 py-2 text-xs font-medium text-white bg-[#121814] border border-[#1E2822] hover:bg-[#17221A] hover:border-[#10B981]/40 rounded-xl transition-all inline-flex items-center gap-1.5"
-            >
-              <span>View All on GitHub</span>
-              <ExternalLink className="w-3.5 h-3.5 text-[#9CA3AF]" />
-            </a>
+            <>
+              <button
+                onClick={fetchIssuesForActiveRepo}
+                disabled={isLoading}
+                className="px-3 py-2 text-xs font-medium text-[#9CA3AF] hover:text-white bg-[#121814] border border-[#1E2822] rounded-xl hover:bg-[#17221A] transition-all flex items-center gap-1.5"
+                title="Refresh issues"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
+              <a
+                href={`${activeRepo.html_url}/issues`}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3.5 py-2 text-xs font-medium text-white bg-[#121814] border border-[#1E2822] hover:bg-[#17221A] hover:border-[#10B981]/40 rounded-xl transition-all inline-flex items-center gap-1.5"
+              >
+                <span>View on GitHub</span>
+                <ExternalLink className="w-3.5 h-3.5 text-[#9CA3AF]" />
+              </a>
+            </>
           )}
         </div>
       </div>
@@ -200,7 +226,6 @@ Please break this down into:
 
         {/* Filter Buttons */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Category Dropdown/Selector */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
@@ -215,7 +240,6 @@ Please break this down into:
             <option value="Improvement">Improvement</option>
           </select>
 
-          {/* Beginner Only Toggle */}
           <button
             onClick={() => setOnlyBeginner(!onlyBeginner)}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5 ${
@@ -230,7 +254,7 @@ Please break this down into:
         </div>
       </div>
 
-      {/* Loading & Error States */}
+      {/* Loading State */}
       {isLoading && (
         <div className="p-12 text-center text-xs text-[#9CA3AF] bg-[#0D110F]/80 rounded-2xl border border-[#1E2822] backdrop-blur-md">
           <div className="inline-block w-6 h-6 border-2 border-[#10B981] border-t-transparent rounded-full animate-spin mb-2" />
@@ -238,29 +262,53 @@ Please break this down into:
         </div>
       )}
 
+      {/* Honest Error State with Retry Button */}
       {error && !isLoading && (
-        <div className="p-4 text-xs bg-red-950/40 text-red-300 rounded-xl border border-red-800/50">
-          {error}
+        <div className="p-6 text-xs bg-red-950/40 text-red-300 rounded-2xl border border-red-800/50 space-y-3">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div className="space-y-1 flex-1">
+              <div className="font-bold text-sm text-red-200">GitHub API Notice</div>
+              <div className="leading-relaxed">{error}</div>
+            </div>
+          </div>
+          <div className="pt-2 flex items-center gap-3">
+            <button
+              onClick={fetchIssuesForActiveRepo}
+              className="btn-emerald-glow px-4 py-1.5 text-xs font-semibold rounded-lg flex items-center gap-1.5"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Retry Fetching Issues</span>
+            </button>
+            <button
+              onClick={onOpenRepoSelector}
+              className="px-3.5 py-1.5 text-xs text-[#9CA3AF] hover:text-white bg-[#121814] border border-[#1E2822] rounded-lg"
+            >
+              Try Another Repository
+            </button>
+          </div>
         </div>
       )}
 
       {/* Issues Grid / List */}
-      {!isLoading && filteredIssues.length === 0 && (
+      {!isLoading && !error && filteredIssues.length === 0 && (
         <div className="p-12 text-center bg-[#0D110F]/80 rounded-2xl border border-dashed border-[#1E2822] space-y-2">
           <AlertCircle className="w-8 h-8 text-[#6B7280] mx-auto" />
-          <h4 className="font-heading font-bold text-sm text-white">No matching issues found</h4>
+          <h4 className="font-heading font-bold text-sm text-white">No matching open issues found</h4>
           <p className="text-xs text-[#9CA3AF] max-w-md mx-auto">
-            Try adjusting your search query or disabling the "Beginner Friendly Only" filter.
+            {issues.length === 0
+              ? 'This repository currently has no open issues in GitHub.'
+              : 'Try clearing your search query or unchecking "Beginner Friendly Only".'}
           </p>
         </div>
       )}
 
-      {!isLoading && filteredIssues.length > 0 && (
+      {!isLoading && !error && filteredIssues.length > 0 && (
         <div className="space-y-3">
           {filteredIssues.map((issue) => {
             const heur = analyzeIssueHeuristically(issue, activeRepo?.language);
             const isSaved = savedIssueIds.includes(issue.id);
-            const hasOfficialLabel = issue.labels.some(l => l.name.toLowerCase().includes('good first issue'));
+            const hasOfficialLabel = (issue.labels || []).some(l => l.name.toLowerCase().includes('good first issue'));
 
             return (
               <div
@@ -270,7 +318,6 @@ Please break this down into:
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1.5 flex-1 min-w-0">
-                    {/* Unboxed Metadata Line with typographic separators */}
                     <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#6B7280] font-mono">
                       <span className="text-[#10B981] font-bold">#{issue.number}</span>
                       <span aria-hidden="true">·</span>
@@ -381,7 +428,7 @@ Please break this down into:
               </div>
               <div className="p-3 rounded-xl bg-[#121814] border border-[#1E2822]">
                 <div className="text-[10px] uppercase font-mono font-bold text-[#6B7280]">Difficulty</div>
-                <div className="font-heading font-semibold text-xs text-white mt-0.5">{analysis.difficulty} (AI Estimate)</div>
+                <div className="font-heading font-semibold text-xs text-white mt-0.5">{analysis.difficulty} (AI / Heuristic Estimate)</div>
               </div>
               <div className="p-3 rounded-xl bg-[#121814] border border-[#1E2822]">
                 <div className="text-[10px] uppercase font-mono font-bold text-[#6B7280]">Beginner Readiness</div>
@@ -459,11 +506,18 @@ Please break this down into:
               <div className="p-4 rounded-xl bg-[#121814] border border-[#10B981]/40 space-y-2 text-xs">
                 <div className="font-bold text-[#10B981] flex items-center gap-1.5 font-mono">
                   <Sparkles className="w-3.5 h-3.5" />
-                  <span>AI Mentor Deep Dive (Gemma 2 Open Weights)</span>
+                  <span>AI Mentor Deep Dive (Gemini 3.8 Flash)</span>
                 </div>
                 <div className="whitespace-pre-wrap leading-relaxed text-[#D1D5DB] font-mono">
                   {aiDeepExplanation}
                 </div>
+              </div>
+            )}
+
+            {aiError && (
+              <div className="p-4 rounded-xl bg-red-950/40 border border-red-800/50 space-y-1 text-xs text-red-300">
+                <div className="font-bold text-red-200">AI Mentor Service Notice:</div>
+                <div>{aiError}</div>
               </div>
             )}
 

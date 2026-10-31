@@ -22,7 +22,8 @@ import {
   GitBranch,
   Layers,
   SlidersHorizontal,
-  Compass
+  Compass,
+  AlertCircle
 } from 'lucide-react';
 import { GitHubRepo } from '../../types';
 import { incrementDocsGenerated } from '../../services/storage';
@@ -65,6 +66,7 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
   const [isRefining, setIsRefining] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('split');
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Sync details when active repository changes
   useEffect(() => {
@@ -78,11 +80,6 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
       }));
     }
   }, [activeRepo]);
-
-  // Initial document generation on first mount
-  useEffect(() => {
-    handleGenerateDocument();
-  }, []);
 
   const docTypesList: { id: DocType; label: string; desc: string; icon: any; filename: string }[] = [
     {
@@ -129,15 +126,182 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
     },
   ];
 
+  // Standard starter template generator for immediate local scaffolding
+  const getStandardStarterTemplate = (type: DocType): string => {
+    const name = docDetails.name;
+    const desc = docDetails.description;
+    const lang = docDetails.language;
+    const install = docDetails.installCommand;
+
+    switch (type) {
+      case 'README':
+        return `# ${name}
+
+> ${desc}
+
+## ✨ Key Features
+- Clean, modular architecture built with ${lang}.
+- Welcoming contribution guidelines and friendly issue tracker.
+- Automated testing and continuous integration.
+
+## 🚀 Quickstart
+
+### Prerequisites
+- Node.js (v18 or higher recommended)
+- Git installed on your computer
+
+### Installation
+\`\`\`bash
+# 1. Clone your fork
+git clone https://github.com/YOUR_USERNAME/${name}.git
+cd ${name}
+
+# 2. Install dependencies
+${install}
+
+# 3. Start development
+npm run dev
+\`\`\`
+
+## 🤝 Contributing
+We welcome first-time contributors! Please review [CONTRIBUTING.md](CONTRIBUTING.md) to get started.
+
+## 📄 License
+This project is open-source under the MIT License.`;
+
+      case 'CONTRIBUTING':
+        return `# Contributing to ${name}
+
+Thank you for taking the time to contribute! All skill levels are welcome.
+
+## 🛠️ Step-by-Step Contribution Workflow
+
+1. **Find an Issue**: Browse open issues tagged with \`good first issue\` or \`documentation\`.
+2. **Comment**: Post a comment asking to work on the issue to avoid duplicate efforts.
+3. **Fork & Clone**: Fork this repo to your GitHub account and clone it locally:
+   \`\`\`bash
+   git clone https://github.com/YOUR_USERNAME/${name}.git
+   cd ${name}
+   git remote add upstream https://github.com/${activeRepo ? activeRepo.full_name : 'owner/' + name}.git
+   \`\`\`
+4. **Create a Branch**:
+   \`\`\`bash
+   git checkout -b fix/your-issue-name
+   \`\`\`
+5. **Implement & Test**: Make your changes cleanly and run tests:
+   \`\`\`bash
+   npm test
+   \`\`\`
+6. **Commit & Push**:
+   \`\`\`bash
+   git add .
+   git commit -m "docs: clarify getting-started instructions"
+   git push -u origin fix/your-issue-name
+   \`\`\`
+7. **Open a Pull Request**: Submit your PR on GitHub referencing \`Closes #<issue-number>\`.
+
+## 💬 Community & Kindness
+Please follow our [Code of Conduct](CODE_OF_CONDUCT.md). We are here to help you succeed!`;
+
+      case 'CODE_OF_CONDUCT':
+        return `# Contributor Covenant Code of Conduct
+
+## Our Pledge
+We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone, regardless of age, body size, visible or invisible disability, ethnicity, sex characteristics, gender identity and expression, level of experience, education, socio-economic status, nationality, personal appearance, race, religion, or sexual identity and orientation.
+
+## Our Standards
+Examples of behavior that contributes to a positive environment:
+* Demonstrating empathy and kindness toward other people
+* Being respectful of differing viewpoints and experiences
+* Gracefully accepting constructive feedback
+* Focusing on what is best for the community
+
+## Enforcement
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project maintainers.`;
+
+      case 'ISSUE_TEMPLATE':
+        return `### 🐛 Bug Description
+A clear and concise description of what the bug is.
+
+### 📋 Steps to Reproduce
+1. Go to '...'
+2. Click on '....'
+3. Scroll down to '....'
+4. See error
+
+### 🎯 Expected Behaviour
+A clear and concise description of what you expected to happen.
+
+### 🛑 Actual Behaviour
+What actually occurred (include console errors or screenshots if relevant).
+
+### 💻 Environment Context
+- OS: [e.g. macOS / Windows / Linux]
+- Node version: [e.g. 20.10.0]
+- Browser: [e.g. Chrome / Firefox]
+
+### ✅ Acceptance Criteria
+- [ ] Fix applied without regressions.
+- [ ] Automated tests pass.`;
+
+      case 'PR_TEMPLATE':
+        return `## 📝 Summary of Changes
+- Briefly describe the bug fix or feature implemented.
+- Linked issue: Closes #
+
+## 🧪 Testing Checklist
+- [ ] Ran automated tests locally (\`npm test\`).
+- [ ] Tested manually across modern browsers.
+- [ ] Clean git commit history with clear commit messages.
+
+## 📷 Screenshots or Output (if applicable)
+Add before/after comparison screenshots.`;
+
+      case 'REPO_DOCS':
+        return `# Developer Guide for ${name}
+
+## 🏗️ Architecture Overview
+This repository uses ${docDetails.techStack || 'modular TypeScript'}.
+
+\`\`\`
+├── src/           # Application source code
+│   ├── components # UI view components
+│   ├── services   # API clients and data management
+│   └── types      # TypeScript interface definitions
+├── tests/         # Unit and integration test suites
+└── package.json   # Dependencies and script definitions
+\`\`\`
+
+## 🔧 Local Development & Debugging
+Run the development environment locally:
+\`\`\`bash
+${install}
+npm run dev
+\`\`\`
+
+Run linting and typechecking:
+\`\`\`bash
+npm run lint
+\`\`\``;
+    }
+  };
+
   const handleGenerateDocument = async () => {
     setIsGenerating(true);
+    setError(null);
+
     try {
       const generated = await generateDocWithAI(selectedDocType, docDetails, selectedTone);
       setDocumentContent(generated);
       incrementDocsGenerated();
       setCurrentStep(4);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Doc generation error:', err);
+      setError(err.message || 'AI document generation failed.');
+      // Populate with high-quality standard starter template so user is never blocked
+      const fallback = getStandardStarterTemplate(selectedDocType);
+      setDocumentContent(fallback);
+      setCurrentStep(4);
     } finally {
       setIsGenerating(false);
     }
@@ -148,12 +312,14 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
     if (!refinePrompt.trim() || !documentContent) return;
 
     setIsRefining(true);
+    setError(null);
     try {
       const refined = await refineDocWithAI(documentContent, refinePrompt.trim());
       setDocumentContent(refined);
       setRefinePrompt('');
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Refinement error:', err);
+      setError(err.message || 'AI refinement failed. You can edit the markdown directly in the editor.');
     } finally {
       setIsRefining(false);
     }
@@ -183,7 +349,7 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
     setDocumentContent('');
   };
 
-  // Basic lightweight Markdown renderer for preview
+  // Basic lightweight Markdown renderer for live preview
   const renderMarkdownPreview = (md: string) => {
     const lines = md.split('\n');
     let inCodeBlock = false;
@@ -192,7 +358,6 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
     const elements: React.ReactNode[] = [];
 
     lines.forEach((line, index) => {
-      // Code block start/end
       if (line.startsWith('```')) {
         if (inCodeBlock) {
           elements.push(
@@ -213,7 +378,6 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
         return;
       }
 
-      // Headings
       if (line.startsWith('# ')) {
         elements.push(
           <h1 key={index} className="text-2xl font-heading font-extrabold text-white mt-6 mb-3 pb-2 border-b border-[#1E2822]">
@@ -334,6 +498,26 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Global Error Banner */}
+      {error && (
+        <div className="p-4 text-xs bg-red-950/40 text-red-300 rounded-2xl border border-red-800/50 flex items-start gap-3">
+          <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+          <div className="flex-1 space-y-1">
+            <div className="font-bold">AI Generation Notice</div>
+            <div>{error}</div>
+            <div className="text-[11px] text-[#9CA3AF]">
+              A verified standard template has been loaded so you can edit and download your documentation immediately.
+            </div>
+          </div>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-400 hover:text-white font-mono text-xs underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* STEP 1: Select Type */}
       {currentStep === 1 && (
@@ -501,7 +685,7 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
               },
               {
                 id: 'Professional',
-                title: 'Professional SaaS / Corporate',
+                title: 'Professional SaaS / Clean',
                 desc: 'Concise, clean, and polished. Focuses on clarity, semver, and maintainer efficiency.',
                 badge: 'Industry Standard'
               },
@@ -562,7 +746,6 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
       {/* STEP 4: Document Preview, Edit, Split View & AI Refinement */}
       {currentStep === 4 && (
         <div className="space-y-6">
-          {/* Main Document Workspace Card */}
           <div className="p-6 rounded-2xl bg-[#0D110F]/90 border border-[#1E2822] space-y-4 backdrop-blur-md shadow-2xl">
             {/* Action Bar */}
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#1E2822]">
@@ -703,7 +886,7 @@ export const DocSmithView: React.FC<DocSmithViewProps> = ({
                 <Sparkles className="w-4 h-4 text-[#10B981]" />
                 <span>Refine with AI:</span>
                 <span className="text-[11px] text-[#9CA3AF] font-normal">
-                  (e.g., "Add troubleshooting steps for Windows", "Include a benchmark section", "Add Docker run instructions")
+                  (e.g. "Add a section on reporting security bugs", "Add Windows WSL setup steps", "Expand FAQ")
                 </span>
               </div>
               <div className="flex gap-2">

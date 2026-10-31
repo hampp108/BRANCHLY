@@ -31,47 +31,65 @@ export const RepoHealthView: React.FC<RepoHealthViewProps> = ({
 }) => {
   const [metrics, setMetrics] = useState<RepoHealthMetrics | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeRepo) return;
     setIsLoading(true);
+    setError(null);
 
     const evaluateHealth = async () => {
-      // 1. Fetch README
-      const readme = await getRepoReadme(activeRepo.owner.login, activeRepo.name);
-      const hasReadme = readme.length > 50;
+      try {
+        // 1. Fetch README
+        let readme = '';
+        try {
+          readme = await getRepoReadme(activeRepo.owner.login, activeRepo.name);
+        } catch {
+          readme = '';
+        }
+        const hasReadme = readme.length > 50;
 
-      // 2. Fetch issues & check for good first issues
-      const issues = await getRepoIssues(activeRepo.owner.login, activeRepo.name);
-      const goodFirstIssues = issues.filter(issue =>
-        issue.labels.some(l => l.name.toLowerCase().includes('good first') || l.name.toLowerCase().includes('beginner'))
-      );
-      const hasGoodFirstIssues = goodFirstIssues.length > 0;
+        // 2. Fetch issues & check for good first issues
+        let issues: any[] = [];
+        try {
+          issues = await getRepoIssues(activeRepo.owner.login, activeRepo.name);
+        } catch (issueErr: any) {
+          console.warn('Issue fetching in health check:', issueErr.message);
+        }
+        const goodFirstIssues = issues.filter(issue =>
+          issue.labels?.some((l: any) => l.name?.toLowerCase().includes('good first') || l.name?.toLowerCase().includes('beginner'))
+        );
+        const hasGoodFirstIssues = goodFirstIssues.length > 0;
 
-      // 3. License
-      const hasLicense = Boolean(activeRepo.license && activeRepo.license.key);
+        // 3. License
+        const hasLicense = Boolean(activeRepo.license && activeRepo.license.key);
 
-      // 4. Community profile if available
-      const community = await getRepoCommunityProfile(activeRepo.owner.login, activeRepo.name);
-      const hasContributing = Boolean(community?.files?.contributing) || readme.toLowerCase().includes('contributing');
-      const hasCodeOfConduct = Boolean(community?.files?.code_of_conduct) || readme.toLowerCase().includes('code of conduct');
-      const hasIssueTemplates = Boolean(community?.files?.issue_template);
+        // 4. Community profile if available
+        let community: any = null;
+        try {
+          community = await getRepoCommunityProfile(activeRepo.owner.login, activeRepo.name);
+        } catch {
+          community = null;
+        }
+        const hasContributing = Boolean(community?.files?.contributing) || readme.toLowerCase().includes('contributing');
+        const hasCodeOfConduct = Boolean(community?.files?.code_of_conduct) || readme.toLowerCase().includes('code of conduct');
+        const hasIssueTemplates = Boolean(community?.files?.issue_template);
 
-      // Score calculation based on real verified signals
-      let scorePoints = 0;
-      let totalPoints = 6;
+        // Score calculation based on real verified signals
+        let scorePoints = 0;
+        let totalPoints = 6;
 
-      if (hasReadme) scorePoints += 1;
-      if (hasLicense) scorePoints += 1;
-      if (hasContributing) scorePoints += 1;
-      if (hasCodeOfConduct) scorePoints += 1;
-      if (hasGoodFirstIssues) scorePoints += 1;
-      if (activeRepo.open_issues_count > 0) scorePoints += 1;
+        if (hasReadme) scorePoints += 1;
+        if (hasLicense) scorePoints += 1;
+        if (hasContributing) scorePoints += 1;
+        if (hasCodeOfConduct) scorePoints += 1;
+        if (hasGoodFirstIssues) scorePoints += 1;
+        if (activeRepo.open_issues_count > 0) scorePoints += 1;
 
-      const percentage = Math.round((scorePoints / totalPoints) * 100);
-      let overallScore: 'Needs attention' | 'Good' | 'Excellent' = 'Needs attention';
-      if (percentage >= 80) overallScore = 'Excellent';
-      else if (percentage >= 50) overallScore = 'Good';
+        const percentage = Math.round((scorePoints / totalPoints) * 100);
+        let overallScore: 'Needs attention' | 'Good' | 'Excellent' = 'Needs attention';
+        if (percentage >= 80) overallScore = 'Excellent';
+        else if (percentage >= 50) overallScore = 'Good';
 
       // Actionable suggestions
       const suggestions = [];
@@ -129,10 +147,13 @@ export const RepoHealthView: React.FC<RepoHealthViewProps> = ({
         scorePercentage: percentage,
         actionableSuggestions: suggestions,
       });
-    };
+    } catch (err: any) {
+      setError(err.message || 'Failed to evaluate repository health metrics.');
+    }
+  };
 
-    evaluateHealth().finally(() => setIsLoading(false));
-  }, [activeRepo]);
+  evaluateHealth().finally(() => setIsLoading(false));
+}, [activeRepo]);
 
   return (
     <div className="space-y-8 max-w-6xl mx-auto">

@@ -192,15 +192,23 @@ Guidance Level: ${levelDescriptions[mentorHintLevel]}
 
 Remember: BRANCHLY's philosophy is "Learn the process. Don't just follow instructions." Keep your tone supportive, calm, and educational.`;
 
-    const res = await generateWithAI(prompt, 'You are BRANCHLY Mentor Mode, an empathetic senior engineer mentoring a first-time open source contributor.');
-    if (res.text) {
-      setMentorResponse(res.text);
-    } else {
+    try {
+      const res = await generateWithAI(prompt, 'You are BRANCHLY Mentor Mode, an empathetic senior engineer mentoring a first-time open source contributor.');
+      if (res.error) {
+        throw new Error(res.error);
+      }
+      if (res.text) {
+        setMentorResponse(res.text);
+      } else {
+        setMentorResponse('No response was generated. Please try asking again.');
+      }
+    } catch (err: any) {
       setMentorResponse(
-        `Mentor guidance for "${query}":\n\nWhen working on ${activeRepo ? activeRepo.name : 'this project'}, remember to keep your changes isolated on a branch. If you see an error, inspect the terminal output line number carefully before editing.`
+        `⚠️ **Mentor Mode Notice:** ${err.message || 'AI service unavailable.'}\n\n**${levelDescriptions[mentorHintLevel]}**\n\nGeneral Mentor Tip for ${activeRepo ? activeRepo.name : 'your project'}: Keep your changes strictly isolated on your feature branch (\`${branchName}\`). Never commit on \`${defaultBranch}\`. Always run tests locally before pushing to origin.`
       );
+    } finally {
+      setIsLoadingMentor(false);
     }
-    setIsLoadingMentor(false);
   };
 
   const handleSavePreferences = () => {

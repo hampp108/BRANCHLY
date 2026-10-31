@@ -29,13 +29,13 @@ export const AIModelModal: React.FC<AIModelModalProps> = ({
         {/* Modal Header */}
         <div className="space-y-1">
           <div className="text-[10px] font-mono uppercase tracking-wider text-[#10B981]">
-            AI ARCHITECTURE & OPEN-WEIGHT SPECIFICATIONS
+            AI ARCHITECTURE & INFERENCE SPECIFICATIONS
           </div>
           <h3 className="font-heading text-2xl font-bold text-white">
-            Open-Weight AI Integration
+            AI Architecture & Model Transparency
           </h3>
           <p className="text-xs text-[#9CA3AF] leading-relaxed">
-            BRANCHLY adheres to strict transparency principles. AI capabilities are grounded in published open-weight models and verified server-side endpoints.
+            BRANCHLY adheres to strict engineering transparency. AI capabilities are grounded in Google DeepMind's Gemini model architecture, executed exclusively through secure server-side proxy endpoints.
           </p>
         </div>
 
@@ -50,32 +50,32 @@ export const AIModelModal: React.FC<AIModelModalProps> = ({
               <span>{modelInfo.modelName}</span>
             </div>
             <div className="text-[11px] text-[#9CA3AF]">
-              9 Billion parameter instruction-tuned weights
+              High-throughput multimodal inference engine
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-[#121814] border border-[#1E2822] space-y-1">
             <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B7280]">
-              Model Provider & Weights
+              Model Provider
             </span>
             <div className="font-heading font-bold text-sm text-white">
               {modelInfo.provider}
             </div>
             <div className="text-[11px] text-[#9CA3AF]">
-              Open-weight family derived from Gemini technology
+              State-of-the-art model family by Google DeepMind
             </div>
           </div>
 
           <div className="p-4 rounded-xl bg-[#121814] border border-[#1E2822] space-y-1">
             <span className="text-[10px] font-mono uppercase tracking-wider text-[#6B7280]">
-              Model License
+              Model Terms & License
             </span>
             <div className="font-heading font-bold text-sm text-white flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-[#10B981]" />
               <span>{modelInfo.license}</span>
             </div>
             <div className="text-[11px] text-[#9CA3AF]">
-              Permissive research & commercial redistribution terms
+              Google AI Developer Terms of Service
             </div>
           </div>
 

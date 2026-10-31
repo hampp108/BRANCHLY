@@ -33,11 +33,13 @@ Steps: 1. Go to home page on phone, 2. Tap hamburger, 3. Tap outside.`
   const [editableDraft, setEditableDraft] = useState<string>(qualityResult.improvedDraft);
   const [copiedDraft, setCopiedDraft] = useState(false);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
+  const [errorAI, setErrorAI] = useState<string | null>(null);
 
   const handleEvaluate = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!issueInput.trim()) return;
 
+    setErrorAI(null);
     const res = analyzeIssueQualityHeuristically(issueInput.trim());
     setQualityResult(res);
     setEditableDraft(res.improvedDraft);
@@ -45,6 +47,7 @@ Steps: 1. Go to home page on phone, 2. Tap hamburger, 3. Tap outside.`
 
   const handleRefineWithAI = async () => {
     setIsLoadingAI(true);
+    setErrorAI(null);
     const prompt = `As BRANCHLY Issue Quality Checker, evaluate and rewrite this GitHub issue to be exceptionally welcoming and clear for first-time open source contributors.
 
 Raw issue text:
@@ -59,11 +62,19 @@ Please provide an improved structured Markdown issue description containing:
 - ✅ Acceptance Criteria for Contributors
 - 🏷️ Recommended Labels (e.g., 'good first issue', 'bug', 'frontend')`;
 
-    const res = await generateWithAI(prompt, 'You are an experienced open-source maintainer crafting welcoming, pristine GitHub issue descriptions for beginners.');
-    if (res.text) {
-      setEditableDraft(res.text);
+    try {
+      const res = await generateWithAI(prompt, 'You are an experienced open-source maintainer crafting welcoming, pristine GitHub issue descriptions for beginners.');
+      if (res.error) {
+        throw new Error(res.error);
+      }
+      if (res.text) {
+        setEditableDraft(res.text);
+      }
+    } catch (err: any) {
+      setErrorAI(err.message || 'AI enhancement encountered an issue. Using deterministic template.');
+    } finally {
+      setIsLoadingAI(false);
     }
-    setIsLoadingAI(false);
   };
 
   const handleCopyDraft = () => {
@@ -218,6 +229,19 @@ Please provide an improved structured Markdown issue description containing:
               </button>
             </div>
           </div>
+
+          {errorAI && (
+            <div className="p-3 text-xs bg-amber-950/40 text-amber-300 rounded-xl border border-amber-800/40 flex items-center justify-between">
+              <span>{errorAI}</span>
+              <button
+                type="button"
+                onClick={() => setErrorAI(null)}
+                className="text-amber-400 hover:text-white underline text-[11px] font-mono ml-2"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           <textarea
             value={editableDraft}
